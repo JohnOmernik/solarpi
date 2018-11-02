@@ -4,10 +4,46 @@ from pysolar import solar
 import time
 import datetime
 import pytz
+import os.path
+MYLAT = 1000.0
+MYLNG = 1000.0
+STRTZ = ""
 
-MYLAT = 44.6870417
-MYLNG = -89.268059
-strtz = "America/Chicago"
+ENV_FILE = "env.list"
+
+if not os.path.isfile(ENV_FILE):
+    print("ENV_FILE at %s not found - exiting")
+    sys.exit(1)
+
+e = open(ENV_FILE, "r")
+
+lines = e.read()
+e.close()
+for line in lines.split("\n"):
+    myline = line.strip()
+    if myline.find("#") == 0:
+        pass
+    elif myline != "":
+        arline = myline.split("=")
+        if arline[0] == "MYLAT":
+            MYLAT = float(arline[1])
+        if arline[0] == "MYLNG":
+            MYLNG = float(arline[1])
+        if arline[0] == "STRTZ":
+            STRTZ = arline[1]
+
+
+
+if MYLAT == 1000.0 or MYLNG == 1000.0 or STRTZ == "":
+    print("ENV Values not found please check your env.list file to ensure valid values exist for MYLAT, MYLNG, and STRTZ")
+    sys.exit(1)
+print("==================")
+print("Starting with values:")
+print("MYLAT: %s" % MYLAT)
+print("MYLNG: %s" % MYLNG)
+print("STRTZ: %s" % STRTZ)
+print("=================")
+print("")
 
 
 
@@ -16,7 +52,7 @@ strtz = "America/Chicago"
 
 def main():
 
-    timezone = pytz.timezone(strtz)
+    timezone = pytz.timezone(STRTZ)
 
     #date = datetime.datetime(2018, 10, 22, 13, 20, 10, 130320)
 
