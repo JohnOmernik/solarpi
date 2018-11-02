@@ -1,3 +1,4 @@
 dual-g2-high-power-motor-driver-rpi/
 env.list
+solardata_*
 *.json
