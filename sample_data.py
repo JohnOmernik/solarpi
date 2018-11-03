@@ -84,7 +84,7 @@ def main ():
             xa, ya, za = getreading(bus, "accel", busloc)
             xg, yg, zg = getreading(bus, "gyro", busloc)
         except:
-            failcnt + =1
+            failcnt += 1
             if failcnt >= 10:
                 print("Failure count is at or over 10, trying to reinit the sensor")
                 initsensor(bus, busloc)
