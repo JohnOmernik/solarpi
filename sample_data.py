@@ -68,6 +68,8 @@ def main ():
     myfile = "./solardata_%s_%s.json" % (myhostname, fileday)
     fh = open(myfile, "a")
 
+    failcnt = 0
+
     while True:
         # Setup time vars
         curtime = datetime.datetime.now()
@@ -78,9 +80,17 @@ def main ():
 
         # Get Readings
         curalt, curaz = get_alt_az(mydate)
-        xa, ya, za = getreading(bus, "accel", busloc)
-        xg, yg, zg = getreading(bus, "gyro", busloc)
-
+        try:
+            xa, ya, za = getreading(bus, "accel", busloc)
+            xg, yg, zg = getreading(bus, "gyro", busloc)
+        except:
+            failcnt + =1
+            if failcnt >= 10:
+                print("Failure count is at or over 10, trying to reinit the sensor")
+                initsensor(bus, busloc)
+            time.sleep(5)
+            continue
+        failcnt = 0
         # Check to see if day changed so we can change the file
         if curday != fileday:
             fh.close()
