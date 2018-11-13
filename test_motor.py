@@ -11,6 +11,11 @@ from dual_g2_hpmd_rpi import motors, MAX_SPEED
 #0 is Stop
 
 
+
+
+
+# Get I2C bus
+
 def main():
     motors.enable()
     motors.setSpeeds(0, 0)

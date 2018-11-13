@@ -3,7 +3,6 @@ import json
 import datetime
 import smbus
 import socket
-import math
 import time
 from collections import OrderedDict
 from pysolar import solar
@@ -25,9 +24,6 @@ EAST_POS=0.0
 WEST_POS=0.0
 EAST_ANGLE=0.0
 WEST_ANGLE=0.0
-axis_azi = 0.0
-axis_tilt = 0.0
-MOVE_INTERVAL=600
 STRTZ = ""
 
 ENV_FILE = "env.list"
@@ -60,36 +56,25 @@ for line in lines.split("\n"):
             WEST_POS = float(arline[1])
         if arline[0] == "EAST_POS":
             EAST_POS = float(arline[1])
-        if arline[0] == "AXIS_AZI":
-            axis_azi = float(arline[1])
-        if arline[0] == "AXIS_TILT":
-            axis_tilt = float(arline[1])
-        if arline[0] == "MOVE_INTERVAL":
-            MOVE_INTERVAL = int(arline[1])
 
-INVERT_SENSOR = True # We installed our sensor apparently "upside down" therefore we need to invert the reading to align with the solar function
 
 ECONV = EAST_POS / EAST_ANGLE
 WCONV = WEST_POS / WEST_ANGLE
 
-if MYLAT == 1000.0 or MYLNG == 1000.0 or STRTZ == "" or EAST_ANGLE == 0.0 or WEST_ANGLE == 0.0 or WEST_POS == 0.0 or EAST_POS == 0.0 or axis_azi == 0.0 or axis_tilt == 0.0:
-    print("ENV Values not found please check your env.list file to ensure valid values exist for EAST and WEST_POS, EAST and WEST_ANGLE, AXIS_AZI, AXIS_TILE, MYLAT, MYLNG, and STRTZ")
+if MYLAT == 1000.0 or MYLNG == 1000.0 or STRTZ == "" or EAST_ANGLE == 0.0 or WEST_ANGLE == 0.0 or WEST_POS == 0.0 or EAST_POS == 0.0:
+    print("ENV Values not found please check your env.list file to ensure valid values exist for MYLAT, MYLNG, and STRTZ")
     sys.exit(1)
 print("==================")
 print("Starting with values:")
 print("MYLAT: %s" % MYLAT)
 print("MYLNG: %s" % MYLNG)
 print("STRTZ: %s" % STRTZ)
-print("AXIS_AZI: %s" % axis_azi)
-print("AXIS_TILT: %s" % axis_tilt)
 print("EAST_ANGLE: %s" % EAST_ANGLE)
 print("WEST_ANGLE: %s" % WEST_ANGLE)
 print("EAST_POS: %s" % EAST_POS)
 print("WEST_POS: %s" % WEST_POS)
 print("ECONV: %s" % ECONV)
 print("WCONV: %s" % WCONV)
-print("MOVE_INTERVAL: %s" % MOVE_INTERVAL)
-print("INVERT_SENSOR: %s" % INVERT_SENSOR)
 print("=================")
 print("")
 
@@ -102,75 +87,49 @@ myhostname = socket.gethostname()
 def main():
     global bus
     global busloc
-    global axis_tilt
-    global axis_azi
+
     initsensor(bus, busloc)
     timezone = pytz.timezone(STRTZ)
     motors.enable()
     motors.setSpeeds(0, 0)
-    RUNNING = True
-    last_set_val = 0
-    last_set_time = 0
-    while RUNNING:
-        curtime = datetime.datetime.now()
-        curday = curtime.strftime("%Y-%m-%d")
-        mystrtime = curtime.strftime("%Y-%m-%d %H:%M:%S")
-        epochtime = int(time.time())
-        mydate = timezone.localize(curtime)
-        curalt, curaz = get_alt_az(mydate)
-        cur_r = mydeg(get_pos())
-        track_err = False
-        if math.fabs(math.fabs(cur_r) - math.fabs(last_set_val)) > 2.0:
-            print("%s - Track error, going to set track_err to true: cur_r: %s - last_set_val: %s" % (mystrtime, cur_r, last_set_val))
-            track_err = True
-        if curalt > 0:
-            sun_r = getR(curalt, curaz, axis_tilt, axis_azi)
-            if INVERT_SENSOR:
-                sun_r = -sun_r
-            print("%s - Sun is up! -  Sun Alt: %s - Sun Azi: %s - Cur Rot: %s - Potential Sun Rot: %s" % (mystrtime, curalt, curaz, cur_r, sun_r))
-            NEW_SET_VAL = None
-            if sun_r <= EAST_ANGLE and sun_r >= WEST_ANGLE:
-                print("%s - Potential new val: %s - cur: %s" % (mystrtime, sun_r, cur_r))
-                NEW_SET_VAL = sun_r
-            elif sun_r > EAST_ANGLE and (last_set_val != EAST_ANGLE or track_err == True):
-                print("%s - Sun Rot (%s) is Beyond East(%s), and array needs to move there" % (mystrtime, sun_r, EAST_ANGLE))
-                NEW_SET_VAL = EAST_ANGLE
-            elif sun_r < WEST_ANGLE and (last_set_val != WEST_ANGLE or track_err == True):
-                print("%s - Sun Rot (%s) is Beyond West(%s), and array needs to move there" % (mystrtime, sun_r, WEST_ANGLE))
-                NEW_SET_VAL = WEST_ANGLE
-            if epochtime - last_set_time >= MOVE_INTERVAL and NEW_SET_VAL is not None:
-                print("%s Setting New val: %s from %s" % (mystrtime, NEW_SET_VAL, cur_r))
-                last_set_time = epochtime
-                last_set_val = NEW_SET_VAL
-                goto_angle(NEW_SET_VAL)
+
+    inp = ""
+    while inp != "q":
+        cur_pos = mydeg(get_pos())
+        try:
+            inp = input("Current Angle: %s - a, f, b, s, or q: " % cur_pos)
+        except:
+            print("\nNo fun exiting")
+            motors.setSpeeds(0, 0)
+            motors.disable()
+            sys.exit(0)
+
+        if inp == "f": 
+            motors.motor1.setSpeed(-480)
+        elif inp == "b":
+            motors.motor1.setSpeed(480)
+        elif inp == "s":
+            motors.motor1.setSpeed(0)
+        elif inp == "q":
+            motors.setSpeeds(0, 0)
+            motors.disable()
+            sys.exit(0)
+        elif inp == "a":
+            print("Oh cool, you want to set an angle! Type it here, oh, use whole numbers for now")
+            print("")
+            myangle = input("Set a whole number angle between %s (East) and %s (West): " % (EAST_ANGLE, WEST_ANGLE))
+            if 1 == 1:
+                ang = int(myangle)
+                print("Using %s as your angle (you entered %s, we int() it)" % (ang, myangle))
+                print("Setting Now")
+                goto_angle(ang)
+                print("Set complete")
+                print("")
+            else:
+                print("We couldn't int your angle, ignoring you for now")
+                continue
         else:
-            if cur_r < 45:
-                print("%s - Sun is down, and we are going to move all the way east" % mystrtime)
-                goto_angle(EAST_ANGLE)
-                last_set_val = EAST_ANGLE
-                last_set_time = epochtime
-        time.sleep(60)
-
-def getR(sun_alt, sun_azi, axis_tilt, axis_azi):
-    # Return in Degrees
-    sun_zen = 90 - sun_alt
-    x_1 = (math.sin(math.radians(sun_zen)) * math.sin(math.radians(sun_azi) - math.radians(axis_azi)))
-    x_2 = (math.sin(math.radians(sun_zen)) * math.cos(math.radians(sun_azi) - math.radians(axis_azi)) * math.sin(math.radians(axis_tilt)))
-    x_3 = (math.cos(math.radians(sun_zen)) * math.cos(math.radians(axis_tilt)))
-    x_4 = x_2 + x_3
-    X = x_1 / x_4
-    if X == 0.0 or (X > 0 and (sun_azi - axis_azi) > 0) or (X < 0 and (sun_azi - axis_azi) < 0):
-        mypsi = math.radians(0.0)
-    elif X < 0 and (sun_azi - axis_azi) > 0:
-        mypsi = math.radians(180.0)
-    elif X > 0 and (sun_azi - axis_azi) < 0:
-        mypsi = math.radians(-180.0)
-    else:
-        print("awe crap")
-        mypsi = 0
-    R = math.atan(X) + mypsi
-
-    return math.degrees(R)
+            print("nope")
 
 def goto_angle(setangle):
     global ECONV
@@ -223,8 +182,6 @@ def goto_angle(setangle):
             if NEW_POS >= TARGET_POS:
                 motors.motor1.setSpeed(0)
                 finished = True
-        time.sleep(0.5)
-    print("Finished setting position")
 #motors.motor1.setSpeed(-480)
 def mydeg(pos):
     retval = 0
@@ -293,11 +250,6 @@ def convertreading(val1, val2):
     if retval > 32767:
         retval -= 65536
     return retval
-
-def get_alt_az(dt):
-    alt = solar.get_altitude(MYLAT, MYLNG, dt)
-    az = solar.get_azimuth(MYLAT, MYLNG, dt)
-    return alt, az
 
 if __name__ == '__main__':
     main()
