@@ -28,6 +28,7 @@ WEST_ANGLE=0.0
 axis_azi = 0.0
 axis_tilt = 0.0
 MOVE_INTERVAL=600
+NIGHT_POS=0.0
 STRTZ = ""
 
 ENV_FILE = "env.list"
@@ -120,10 +121,11 @@ def main():
         curalt, curaz = get_alt_az(mydate)
         cur_r = mydeg(get_pos())
         track_err = False
-        if math.fabs(math.fabs(cur_r) - math.fabs(last_set_val)) > 2.0:
-            print("%s - Track error, going to set track_err to true: cur_r: %s - last_set_val: %s" % (mystrtime, cur_r, last_set_val))
-            track_err = True
         if curalt > 0:
+            # We only check if there is a track error if the sun is up, no point in correcting all night long
+            if math.fabs(math.fabs(cur_r) - math.fabs(last_set_val)) > 2.0:
+                print("%s - Track error, going to set track_err to true: cur_r: %s - last_set_val: %s" % (mystrtime, cur_r, last_set_val))
+                track_err = True
             sun_r = getR(curalt, curaz, axis_tilt, axis_azi)
             if INVERT_SENSOR:
                 sun_r = -sun_r
@@ -144,10 +146,10 @@ def main():
                 last_set_val = NEW_SET_VAL
                 goto_angle(NEW_SET_VAL)
         else:
-            if cur_r < 45:
-                print("%s - Sun is down, and we are going to move all the way east" % mystrtime)
-                goto_angle(EAST_ANGLE)
-                last_set_val = EAST_ANGLE
+            if last_set_val != NIGHT_POS:
+                print("%s - Sun is down setting to %s for the night" % (mystrtime, NIGHT_POS))
+                goto_angle(NIGHT_POS)
+                last_set_val = NIGHT_POS
                 last_set_time = epochtime
         time.sleep(60)
 
@@ -212,17 +214,22 @@ def goto_angle(setangle):
         finished = True
         print("No change!")
     motors.motor1.setSpeed(motor_dir)
+    tcnt = 0
+
     while finished == False:
+        tcnt += 1
+        NEW_POS = get_pos()
         if motor_dir < 0:
-            NEW_POS = get_pos()
             if NEW_POS <= TARGET_POS:
                 motors.motor1.setSpeed(0)
                 finished = True
         elif motor_dir > 0:
-            NEW_POS = get_pos()
             if NEW_POS >= TARGET_POS:
                 motors.motor1.setSpeed(0)
                 finished = True
+        elif tcnt >= 1200:
+            print("It has taken over 5 minutes of waiting and we didn't get to where you want, we are giving up at at %s"  % NEW_POS)
+            finished = True
         time.sleep(0.5)
     print("Finished setting position")
 #motors.motor1.setSpeed(-480)
